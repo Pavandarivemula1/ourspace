@@ -1,0 +1,477 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id              String           @id @default(uuid())
+  email           String           @unique
+  passwordHash    String
+  name            String
+  role            String           // FOUNDER, STARTUP, COMMUNITY, VENUE, PROFESSIONAL, ADMIN
+  status          String           @default("ACTIVE") // ACTIVE, SUSPENDED, BANNED
+  isEmailVerified Boolean          @default(false)
+  isPhoneVerified Boolean          @default(false)
+  avatarUrl       String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  profile               Profile?
+  orgMemberships        OrganizationMember[]
+  commMemberships       CommunityMember[]
+  venues                Venue[]
+  requests              Request[]
+  offers                Offer[]
+  eventsOrganized       Event[]
+  eventRegistrations    EventRegistration[]
+  sentIntroRequests     IntroductionRequest[] @relation("SentIntros")
+  receivedIntroRequests IntroductionRequest[] @relation("ReceivedIntros")
+  sentVenueRequests     VenueBookingRequest[] @relation("SentVenueRequests")
+  connectionsA          Connection[]          @relation("UserAConnections")
+  connectionsB          Connection[]          @relation("UserBConnections")
+  collaborationsA       Collaboration[]       @relation("CollabUserA")
+  collaborationsB       Collaboration[]       @relation("CollabUserB")
+  conversationMembers   ConversationParticipant[]
+  messagesSent          Message[]
+  reviewsGiven          Review[]              @relation("ReviewsGiven")
+  reviewsReceived       Review[]              @relation("ReviewsReceived")
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  reportsFiled          Report[]              @relation("ReportsFiled")
+}
+
+model Profile {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline            String?
+  bio                 String?
+  locationCity        String   @default("Hyderabad")
+  locationCountry     String   @default("India")
+  building            String?  // What they are building
+  lookingFor          String   // JSON array of strings
+  canOffer            String   // JSON array of strings
+  skills              String?  // JSON array of strings
+  experienceYears     Int      @default(0)
+  websiteUrl          String?
+  linkedinUrl         String?
+  twitterUrl          String?
+  githubUrl           String?
+  organizerScore      Float    @default(5.0)
+  venueScore          Float    @default(5.0)
+  speakerScore        Float    @default(5.0)
+  collaboratorScore   Float    @default(5.0)
+  communityScore      Float    @default(5.0)
+  reviewCount         Int      @default(0)
+  collaborationsCount Int      @default(0)
+  responseRate        Int      @default(100)
+  verificationLevel   String   @default("UNVERIFIED") // UNVERIFIED, EMAIL_VERIFIED, IDENTITY_VERIFIED, ECOSYSTEM_VERIFIED
+}
+
+model Organization {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  logoUrl      String?
+  description  String
+  website      String?
+  industry     String
+  locationCity String   @default("Hyderabad")
+  stage        String   @default("EARLY_STAGE") // IDEA, SEED, EARLY_STAGE, GROWTH, ENTERPRISE
+  teamSize     String   @default("1-10")
+  building     String?
+  lookingFor   String   // JSON array
+  canOffer     String   // JSON array
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  members  OrganizationMember[]
+  venues   Venue[]
+  requests Request[]
+  offers   Offer[]
+  events   Event[]
+}
+
+model OrganizationMember {
+  id       String       @id @default(uuid())
+  orgId    String
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     String       @default("MEMBER") // OWNER, ADMIN, MEMBER
+  joinedAt DateTime     @default(now())
+}
+
+model Community {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  logoUrl      String?
+  bannerUrl    String?
+  description  String
+  locationCity String   @default("Hyderabad")
+  categories   String   // JSON array
+  isVerified   Boolean  @default(false)
+  memberCount  Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  members  CommunityMember[]
+  events   Event[]
+  requests Request[]
+  offers   Offer[]
+}
+
+model CommunityMember {
+  id          String    @id @default(uuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String    @default("MEMBER") // ORGANIZER, CO_HOST, MEMBER
+  joinedAt    DateTime  @default(now())
+}
+
+model Venue {
+  id               String   @id @default(uuid())
+  ownerId          String
+  owner            User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  orgId            String?
+  org              Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  name             String
+  description      String
+  locationCity     String   @default("Hyderabad")
+  neighborhood     String   @default("Hitec City")
+  addressSecret    String   // Hidden until approved booking
+  capacity         Int
+  pricingType      String   // FREE, COMMUNITY_SPONSORED, BARTER, DISCOUNTED, PAID
+  priceDetails     String?
+  photos           String   // JSON array
+  facilities       String   // JSON array
+  eventTypes       String   // JSON array
+  operatingHours   String   @default("09:00 - 21:00")
+  rules            String   // JSON object
+  isVerified       Boolean  @default(false)
+  rating           Float    @default(5.0)
+  reviewCount      Int      @default(0)
+  approvalRequired Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  availabilities  VenueAvailability[]
+  bookingRequests VenueBookingRequest[]
+  eventsHosted    Event[]
+}
+
+model VenueAvailability {
+  id          String   @id @default(uuid())
+  venueId     String
+  venue       Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  date        String   // YYYY-MM-DD
+  isAvailable Boolean  @default(true)
+  timeSlots   String?  // JSON array
+}
+
+model Request {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId          String?
+  org            Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  communityId    String?
+  community      Community?    @relation(fields: [communityId], references: [id], onDelete: SetNull)
+  requestType    String    // VENUE, SPEAKER, SPONSOR, FOUNDER, PARTNER, MENTOR, DEVELOPER, DESIGNER, CUSTOMER, RESOURCE
+  title          String
+  description    String
+  locationCity   String    @default("Hyderabad")
+  targetDate     String?   // YYYY-MM-DD
+  targetTimeSlot String?   // MORNING, AFTERNOON, EVENING, NIGHT
+  budgetType     String?   // FREE, BARTER, PAID
+  budgetAmount   String?
+  capacityNeeded Int?
+  requirements   String    // JSON array
+  category       String    @default("General")
+  deadline       String?
+  status         String    @default("PUBLISHED") // DRAFT, PUBLISHED, MATCHING, RECEIVING_RESPONSES, ACCEPTED, COMPLETED, CANCELLED, EXPIRED
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  matches           Match[]
+  eventRequirements EventRequirement[]
+  introRequests     IntroductionRequest[]
+}
+
+model Offer {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId          String?
+  org            Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  communityId    String?
+  community      Community?    @relation(fields: [communityId], references: [id], onDelete: SetNull)
+  offerType      String    // OFFICE_SPACE, EVENT_VENUE, SPEAKING, MENTORSHIP, ENGINEERING, DESIGN, SPONSORSHIP, COMMUNITY_ACCESS, STARTUP_RESOURCES, PARTNERSHIPS
+  title          String
+  description    String
+  locationCity   String    @default("Hyderabad")
+  availability   String?   // WEEKENDS, EVENINGS, FLEXIBLE
+  capacity       Int?
+  requirements   String?   // JSON array
+  pricingType    String    @default("FREE") // FREE, BARTER, DISCOUNTED, PAID
+  pricingDetails String?
+  category       String    @default("General")
+  status         String    @default("ACTIVE") // ACTIVE, PAUSED, ARCHIVED
+  createdAt      DateTime  @default(now())
+
+  matches Match[]
+}
+
+model Match {
+  id             String    @id @default(uuid())
+  requestId      String
+  request        Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  offerId        String?
+  offer          Offer?    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  matchedUserId  String?
+  matchedVenueId String?
+  matchType      String    // VENUE, SPEAKER, SPONSOR, MENTOR, PARTNER, RESOURCE
+  totalScore     Int       // 0-100
+  factors        String    // JSON object: { location: 30, availability: 25, ... }
+  explanation    String    // JSON array of strings
+  status         String    @default("SUGGESTED") // SUGGESTED, VIEWED, ACTIONED, DISMISSED
+  createdAt      DateTime  @default(now())
+}
+
+model VenueBookingRequest {
+  id                  String   @id @default(uuid())
+  venueId             String
+  venue               Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  requesterId         String
+  requester           User     @relation("SentVenueRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  eventId             String?
+  event               Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  eventRequirementId  String?
+  eventRequirement    EventRequirement? @relation(fields: [eventRequirementId], references: [id], onDelete: SetNull)
+  targetDate          String   // YYYY-MM-DD
+  timeSlot            String   // e.g. "17:00 - 21:00"
+  attendeeCount       Int
+  purpose             String
+  specialRequirements String?
+  status              String   @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED, NO_SHOW
+  responseNotes       String?
+  respondedAt         DateTime?
+  createdAt           DateTime @default(now())
+}
+
+model IntroductionRequest {
+  id            String    @id @default(uuid())
+  requesterId   String
+  requester     User      @relation("SentIntros", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipientId   String
+  recipient     User      @relation("ReceivedIntros", fields: [recipientId], references: [id], onDelete: Cascade)
+  requestId     String?
+  request       Request?  @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  reason        String
+  context       String?
+  status        String    @default("PENDING") // PENDING, ACCEPTED, DECLINED, EXPIRED
+  declineReason String?
+  respondedAt   DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+model Connection {
+  id               String   @id @default(uuid())
+  userAId          String
+  userA            User     @relation("UserAConnections", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId          String
+  userB            User     @relation("UserBConnections", fields: [userBId], references: [id], onDelete: Cascade)
+  source           String   // INTRO_ACCEPTED, EVENT_COLLABORATION, VENUE_BOOKING
+  relationshipType String   // FOUNDER, PARTNER, MENTOR, CUSTOMER, SPEAKER, ORGANIZER, COLLABORATOR
+  status           String   @default("ACTIVE") // ACTIVE, BLOCKED
+  createdAt        DateTime @default(now())
+
+  collaborations Collaboration[]
+}
+
+model Collaboration {
+  id           String      @id @default(uuid())
+  connectionId String?
+  connection   Connection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  userAId      String
+  userA        User        @relation("CollabUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId      String
+  userB        User        @relation("CollabUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  title        String
+  description  String
+  category     String      @default("General")
+  status       String      @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED, CANCELLED
+  startedAt    DateTime    @default(now())
+  completedAt  DateTime?
+
+  outcomes Outcome[]
+}
+
+model Event {
+  id           String    @id @default(uuid())
+  title        String
+  slug         String    @unique
+  description  String
+  category     String    @default("AI")
+  organizerId  String
+  organizer    User      @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  communityId  String?
+  community    Community?    @relation(fields: [communityId], references: [id], onDelete: SetNull)
+  orgId        String?
+  org          Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  venueId      String?
+  venue        Venue?        @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  date         String    // YYYY-MM-DD
+  startTime    String    // HH:mm
+  endTime      String    // HH:mm
+  locationCity String    @default("Hyderabad")
+  isVirtual    Boolean   @default(false)
+  capacity     Int       @default(40)
+  status       String    @default("DRAFT")
+  // DRAFT -> SEEKING_RESOURCES -> PARTIALLY_FULFILLED -> RESOURCES_FULFILLED -> REGISTRATION_OPEN -> REGISTRATION_CLOSED -> LIVE -> COMPLETED -> OUTCOME_PENDING -> OUTCOME_RECORDED / CANCELLED
+  visibility   String    @default("PUBLIC")
+  coverImage   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  requirements  EventRequirement[]
+  registrations EventRegistration[]
+  venueBookings VenueBookingRequest[]
+  outcomes      Outcome[]
+}
+
+model EventRequirement {
+  id                 String    @id @default(uuid())
+  eventId            String
+  event              Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  requirementType    String    // VENUE, SPEAKER, SPONSOR, COMMUNITY_PARTNER
+  title              String
+  description        String
+  required           Boolean   @default(true)
+  status             String    @default("PENDING") // PENDING, MATCHED, REQUEST_SENT, CONFIRMED
+  fulfilledByUserId  String?
+  fulfilledByVenueId String?
+  linkedRequestId    String?
+  linkedRequest      Request?  @relation(fields: [linkedRequestId], references: [id], onDelete: SetNull)
+  confirmedAt        DateTime?
+
+  venueBookings VenueBookingRequest[]
+}
+
+model EventRegistration {
+  id           String   @id @default(uuid())
+  eventId      String
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       String   @default("REGISTERED") // REGISTERED, WAITLISTED, ATTENDED, NO_SHOW, CANCELLED
+  registeredAt DateTime @default(now())
+}
+
+model Outcome {
+  id              String         @id @default(uuid())
+  collaborationId String?
+  collaboration   Collaboration? @relation(fields: [collaborationId], references: [id], onDelete: SetNull)
+  eventId         String?
+  event           Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  outcomeType     String         // EVENT_COMPLETED, PARTNERSHIP_CREATED, MENTORSHIP_STARTED, CUSTOMER_INTRODUCED, SPEAKER_CONFIRMED, VENUE_USED, HIRING_CONNECTION, RESOURCE_SHARED, OTHER
+  title           String
+  description     String
+  metrics         String?        // JSON: { attendees: 42, deliverables: "MVP Architecture" }
+  completedAt     DateTime       @default(now())
+  createdById     String
+
+  reviews Review[]
+}
+
+model Review {
+  id             String   @id @default(uuid())
+  outcomeId      String?
+  outcome        Outcome? @relation(fields: [outcomeId], references: [id], onDelete: SetNull)
+  reviewerId     String
+  reviewer       User     @relation("ReviewsGiven", fields: [reviewerId], references: [id], onDelete: Cascade)
+  revieweeId     String?
+  reviewee       User?    @relation("ReviewsReceived", fields: [revieweeId], references: [id], onDelete: Cascade)
+  dimension      String   // ORGANIZER, VENUE, SPEAKER, COMMUNITY, COLLABORATOR
+  rating         Int      // 1-5
+  content        String
+  wasPunctual    Boolean  @default(true)
+  wouldRecommend Boolean  @default(true)
+  createdAt      DateTime @default(now())
+}
+
+model Conversation {
+  id            String   @id @default(uuid())
+  type          String   @default("DIRECT") // DIRECT, EVENT_CHANNEL
+  eventId       String?
+  title         String?
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt       DateTime     @default(now())
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content        String
+  attachments    String?      // JSON array
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // NEW_MATCH, REQUEST_RECEIVED, INTRO_REQUEST, INTRO_ACCEPTED, EVENT_REGISTRATION, VENUE_REQUEST, VENUE_APPROVED, COLLABORATION_COMPLETED, REVIEW_REQUEST
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  reporterId  String
+  reporter    User     @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType  String   // USER, ORG, VENUE, COMMUNITY, EVENT, REQUEST
+  targetId    String
+  reason      String   // SPAM, SCAM, FAKE_IDENTITY, HARASSMENT, UNSAFE_EVENT, MISREPRESENTATION, INAPPROPRIATE
+  details     String
+  status      String   @default("PENDING") // PENDING, INVESTIGATING, RESOLVED, DISMISSED
+  actionTaken String?  // NONE, WARNING, CONTENT_REMOVED, USER_SUSPENDED, USER_BANNED
+  adminNotes  String?
+  createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  action     String   // VENUE_APPROVED, USER_VERIFIED, EVENT_STATE_CHANGED, COLLABORATION_COMPLETED, USER_SUSPENDED
+  entityType String   // Venue, Event, User, Collaboration, Report
+  entityId   String
+  details    String?  // JSON string
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+}
